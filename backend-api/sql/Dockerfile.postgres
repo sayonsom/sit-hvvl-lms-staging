@@ -1,0 +1,4 @@
+FROM postgres:13
+COPY CreateInitialTables.sql /docker-entrypoint-initdb.d/01_schema.sql
+COPY SeedData.sql /docker-entrypoint-initdb.d/02_seed.sql
+RUN chmod 644 /docker-entrypoint-initdb.d/*.sql

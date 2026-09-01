@@ -1,0 +1,176 @@
+##
+## All-in-one UAT deployment: Frontend + LTI Backend + Main API + PostgreSQL + Redis
+## Usage:
+##   docker compose -f docker-compose.uat.yml up -d --build
+##
+## This file intentionally keeps /api/v1 on the same origin and proxies it to
+## the local backend-api container. It does not depend on the old Cloud Run API.
+##
+
+services:
+  virtuallab:
+    build: .
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    environment:
+      - REACT_APP_API_URL=/api/v1
+      - REACT_APP_LTI_API_URL=
+      - REACT_APP_MAPS_API=${REACT_APP_MAPS_API:-}
+      - REACT_APP_AAD_CLIENT_ID=${REACT_APP_AAD_CLIENT_ID:?REACT_APP_AAD_CLIENT_ID is required}
+      - REACT_APP_AAD_TENANT_ID=${REACT_APP_AAD_TENANT_ID:-}
+      - REACT_APP_AAD_AUTHORITY=${REACT_APP_AAD_AUTHORITY:?REACT_APP_AAD_AUTHORITY is required}
+      - REACT_APP_AAD_REDIRECT_URI=${REACT_APP_AAD_REDIRECT_URI:-https://hvlabonline-uat.singaporetech.edu.sg/oauth2/callback}
+      - REACT_APP_AAD_SCOPES=${REACT_APP_AAD_SCOPES:-openid}
+      - REACT_APP_AAD_ALLOWED_GROUP_IDS=${REACT_APP_AAD_ALLOWED_GROUP_IDS:-}
+      - REACT_APP_AAD_ALLOWED_ROLES=${REACT_APP_AAD_ALLOWED_ROLES:-}
+      - REACT_APP_AAD_ALLOWED_EMAIL_DOMAIN=${REACT_APP_AAD_ALLOWED_EMAIL_DOMAIN:-singaporetech.edu.sg}
+      - REACT_APP_AAD_ALLOWED_EMAILS=${REACT_APP_AAD_ALLOWED_EMAILS:-}
+      - BACKEND_API_URL=http://backend-api:8080/api/v1
+      - LTI_BACKEND_URL=http://lti-backend:8000
+      - ENABLE_LTI_PROXY=true
+      - ENABLE_DEBUG_ROUTES=false
+      - ENABLE_API_DOCS=false
+      - ENABLE_DEBUG_MODE=false
+      - CSP_FRAME_ANCESTORS=${CSP_FRAME_ANCESTORS:-'self' https://hvlabonline-uat.singaporetech.edu.sg https://xsitestg.singaporetech.edu.sg}
+      - CSP_CONNECT_SRC=${CSP_CONNECT_SRC:-'self' https://maps.googleapis.com https://api.mapbox.com https://events.mapbox.com}
+    depends_on:
+      lti-backend:
+        condition: service_healthy
+      backend-api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1/health >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  lti-backend:
+    build:
+      context: ./backend-lti
+    environment:
+      - CLIENT_ID=${CLIENT_ID:?CLIENT_ID is required}
+      - LTI_CLIENT_IDS=${LTI_CLIENT_IDS:-${CLIENT_ID}}
+      - DEPLOYMENT_ID=${DEPLOYMENT_ID:?DEPLOYMENT_ID is required}
+      - LTI_DEPLOYMENT_IDS=${LTI_DEPLOYMENT_IDS:-${DEPLOYMENT_ID}}
+      - ISSUER=${ISSUER:-https://xsitestg.singaporetech.edu.sg}
+      - AUTHORIZATION_ENDPOINT=${AUTHORIZATION_ENDPOINT:-https://xsitestg.singaporetech.edu.sg/d2l/lti/authenticate}
+      - KEY_SET_URL=${KEY_SET_URL:-https://xsitestg.singaporetech.edu.sg/d2l/.well-known/jwks}
+      - TOOL_URL=${TOOL_URL:-https://hvlabonline-uat.singaporetech.edu.sg}
+      - FRONTEND_URL=${FRONTEND_URL:-https://hvlabonline-uat.singaporetech.edu.sg}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=${REDIS_DB:-0}
+      - REDIS_SSL=false
+      - SESSION_TTL=${SESSION_TTL:-28800}
+      - STATE_TTL=${STATE_TTL:-300}
+      - LOGIN_CODE_TTL=${LOGIN_CODE_TTL:-60}
+      - LTI_CLOCK_SKEW_SECONDS=${LTI_CLOCK_SKEW_SECONDS:-60}
+      - LTI_JWKS_TIMEOUT_SECONDS=${LTI_JWKS_TIMEOUT_SECONDS:-10}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://hvlabonline-uat.singaporetech.edu.sg,https://xsitestg.singaporetech.edu.sg}
+      - BACKEND_API_URL=http://backend-api:8080/api/v1
+      - BACKEND_API_SERVICE_TOKEN=${BACKEND_API_SERVICE_TOKEN:?BACKEND_API_SERVICE_TOKEN is required}
+      - BACKEND_API_JWT_SECRET=${BACKEND_API_JWT_SECRET:?BACKEND_API_JWT_SECRET is required}
+      - BACKEND_API_JWT_AUDIENCE=${BACKEND_API_JWT_AUDIENCE:-hvvl-backend-api}
+      - STAFF_OIDC_CLIENT_ID=${REACT_APP_AAD_CLIENT_ID:?REACT_APP_AAD_CLIENT_ID is required}
+      - STAFF_OIDC_AUTHORITY=${REACT_APP_AAD_AUTHORITY:?REACT_APP_AAD_AUTHORITY is required}
+      - STAFF_OIDC_REDIRECT_URI=${REACT_APP_AAD_REDIRECT_URI:-https://hvlabonline-uat.singaporetech.edu.sg/oauth2/callback}
+      - STAFF_OIDC_SCOPES=${REACT_APP_AAD_SCOPES:-openid}
+      - STAFF_OIDC_POST_LOGOUT_REDIRECT_URI=${STAFF_OIDC_POST_LOGOUT_REDIRECT_URI:-https://hvlabonline-uat.singaporetech.edu.sg/staff}
+      - STAFF_ALLOWED_EMAIL_DOMAIN=${STAFF_ALLOWED_EMAIL_DOMAIN:-singaporetech.edu.sg}
+      - STAFF_ALLOWED_EMAILS=${STAFF_ALLOWED_EMAILS:-${REACT_APP_AAD_ALLOWED_EMAILS:-}}
+      - STAFF_ALLOWED_ROLES=${STAFF_ALLOWED_ROLES:-${REACT_APP_AAD_ALLOWED_ROLES:-}}
+      - STAFF_ALLOWED_GROUP_IDS=${STAFF_ALLOWED_GROUP_IDS:-${REACT_APP_AAD_ALLOWED_GROUP_IDS:-}}
+      - STAFF_ADMIN_EMAILS=${STAFF_ADMIN_EMAILS:-munhin.yong@singaporetech.edu.sg}
+      - STAFF_COURSE_IDS=${STAFF_COURSE_IDS:-2}
+      - REQUIRE_STAFF_OIDC=true
+      - DEBUG=false
+      - ENABLE_API_DOCS=false
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend-api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import requests; requests.get('http://127.0.0.1:8000/health/ready', timeout=5).raise_for_status()\""]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  backend-api:
+    build:
+      context: ./backend-api
+      dockerfile: Dockerfile.local
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB:-aligndb}
+      - DB_USER=${POSTGRES_USER:-alignuser}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - ENVIRONMENT=local
+      - LOCAL_STORAGE_PATH=/code/local_storage
+      - STORAGE_BUCKET_NAME=${STORAGE_BUCKET_NAME:-align-hvl-2024-release1}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - API_SERVICE_TOKEN=${BACKEND_API_SERVICE_TOKEN:?BACKEND_API_SERVICE_TOKEN is required}
+      - BACKEND_API_JWT_SECRET=${BACKEND_API_JWT_SECRET:?BACKEND_API_JWT_SECRET is required}
+      - BACKEND_API_JWT_AUDIENCE=${BACKEND_API_JWT_AUDIENCE:-hvvl-backend-api}
+      - LOCAL_STORAGE_SIGNING_KEY=${LOCAL_STORAGE_SIGNING_KEY:?LOCAL_STORAGE_SIGNING_KEY is required}
+      - ENABLE_API_DOCS=false
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-https://hvlabonline-uat.singaporetech.edu.sg,https://xsitestg.singaporetech.edu.sg}
+      - TRUSTED_PROXY_HOSTS=${TRUSTED_PROXY_HOSTS:-127.0.0.1,localhost,hvlabonline-uat.singaporetech.edu.sg}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - local_storage_data:/code/local_storage
+      - ./3d_models:/3d_models_src:ro
+      - ./content_files:/content_files_src:ro
+    restart: unless-stopped
+    healthcheck:
+      # Preserve the readiness response in Docker health logs. It contains only
+      # failed check names, never configured values, and turns an opaque
+      # "container is unhealthy" report into an actionable diagnosis.
+      test: ["CMD-SHELL", "response=$$(wget --quiet --content-on-error --output-document=- http://127.0.0.1:8080/health/ready 2>&1); status=$$?; printf '%s\\n' \"$$response\"; exit $$status"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  postgres:
+    build:
+      context: ./backend-api/sql
+      dockerfile: Dockerfile.postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aligndb}
+      POSTGRES_USER: ${POSTGRES_USER:-alignuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-alignuser} -d ${POSTGRES_DB:-aligndb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+  local_storage_data:

@@ -1,0 +1,11 @@
+Question,Question_Type,Option_A,Option_B,Option_C,Option_D,Correct_Answer
+What is the Ferranti Effect in transmission lines?,multiple_choice,Voltage rise at the receiving end,Voltage drop at the sending end,Voltage drop at the receiving end,Voltage rise at the sending end,Voltage rise at the receiving end
+In which type of transmission lines is the Ferranti Effect more pronounced?,multiple_choice,Short transmission lines,Medium transmission lines,Long transmission lines,Very short transmission lines,Long transmission lines
+What causes the Ferranti Effect?,multiple_choice,Capacitive reactance,Inductive reactance,Magnetic flux,Electric field,Capacitive reactance
+What is the primary consequence of the Ferranti Effect?,multiple_choice,Voltage drop at the sending end,Increased power loss,Voltage rise at the receiving end,Constant current flow,Voltage rise at the receiving end
+How can the Ferranti Effect be mitigated?,multiple_choice,By adding series inductance,By adding series resistance,By adding shunt capacitance,By adding shunt inductance,By adding series inductance
+Which of the following best describes the Ferranti Effect?,multiple_choice,Reduction in voltage,Voltage rise at the receiving end,Constant voltage,Constant current,Voltage rise at the receiving end
+At what condition does the Ferranti Effect occur in a transmission line?,multiple_choice,Under light load or no load,Under heavy load,Under short circuit conditions,Under balanced load,Under light load or no load
+Which of the following components in a transmission line is most associated with the Ferranti Effect?,multiple_choice,Resistors,Inductors,Capacitors,Transformers,Capacitors
+What is the typical voltage profile of a transmission line experiencing the Ferranti Effect?,multiple_choice,Constant voltage throughout,Voltage rise at the sending end,Voltage rise at the receiving end,Voltage drop at the receiving end,Voltage rise at the receiving end
+How does the length of the transmission line affect the Ferranti Effect?,multiple_choice,The effect decreases with length,The effect increases with length,The effect is independent of length,The effect fluctuates with length,The effect increases with length

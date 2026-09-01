@@ -1,0 +1,32 @@
+services:
+  virtuallab:
+    build: .
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    environment:
+      # nginx proxies `/api/v1/*` to Cloud Run so the app can use same-origin calls.
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-/api/v1}
+      # Optional: if omitted, the frontend falls back to window.location.origin
+      - REACT_APP_LTI_API_URL=${REACT_APP_LTI_API_URL:-}
+      - REACT_APP_MAPS_API=${REACT_APP_MAPS_API:-}
+      # Optional: Staff/Admin direct login via Microsoft Entra ID (Azure AD)
+      - REACT_APP_AAD_CLIENT_ID=${REACT_APP_AAD_CLIENT_ID:-}
+      - REACT_APP_AAD_TENANT_ID=${REACT_APP_AAD_TENANT_ID:-}
+      - REACT_APP_AAD_AUTHORITY=${REACT_APP_AAD_AUTHORITY:-}
+      - REACT_APP_AAD_REDIRECT_URI=${REACT_APP_AAD_REDIRECT_URI:-}
+      - REACT_APP_AAD_SCOPES=${REACT_APP_AAD_SCOPES:-}
+      - REACT_APP_AAD_ALLOWED_GROUP_IDS=${REACT_APP_AAD_ALLOWED_GROUP_IDS:-}
+      - REACT_APP_AAD_ALLOWED_ROLES=${REACT_APP_AAD_ALLOWED_ROLES:-}
+      - REACT_APP_AAD_ALLOWED_EMAIL_DOMAIN=${REACT_APP_AAD_ALLOWED_EMAIL_DOMAIN:-}
+      - REACT_APP_AAD_ALLOWED_EMAILS=${REACT_APP_AAD_ALLOWED_EMAILS:-}
+      - ENABLE_DEBUG_ROUTES=${ENABLE_DEBUG_ROUTES:-false}
+      - ENABLE_API_DOCS=false
+      - ENABLE_DEBUG_MODE=false
+      - CSP_FRAME_ANCESTORS=${CSP_FRAME_ANCESTORS:-'self' https://hvlabonline-uat.singaporetech.edu.sg}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1/health >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

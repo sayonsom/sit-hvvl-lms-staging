@@ -1,0 +1,101 @@
+name: Security Gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  frontend:
+    name: Frontend audit and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm audit --omit=dev
+      - run: npm run security:verify-xss
+      - run: npm run build
+      - name: Check production sourcemaps
+        run: |
+          if find build -name '*.map' -print | grep -q .; then
+            echo "Production source maps were generated"
+            exit 1
+          fi
+
+  backend:
+    name: Backend dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m unittest discover -s scripts/tests -v
+      - run: python -m pip install --upgrade pip pip-audit
+      - run: pip-audit -r backend-api/requirements.txt
+      - run: pip-audit -r backend-lti/requirements.txt
+      - run: pip-audit -r lti_tool/requirements.txt
+      - run: python -m pip install -r backend-api/requirements.txt
+      - run: PYTHONPATH=backend-api python -m unittest discover -s backend-api/tests -v
+      - run: python -m pip install -r backend-lti/requirements.txt
+      - run: PYTHONPATH=backend-lti python -m unittest discover -s backend-lti/tests -v
+
+  uat-compose:
+    name: UAT Compose startup and readiness
+    runs-on: ubuntu-latest
+    env:
+      REACT_APP_AAD_CLIENT_ID: ci-adfs-client
+      REACT_APP_AAD_AUTHORITY: https://adfs.example.invalid/adfs
+      CLIENT_ID: ci-lti-client
+      DEPLOYMENT_ID: ci-lti-deployment
+      POSTGRES_PASSWORD: ci-database-password-aaaaaaaaaaaaaaaa
+      BACKEND_API_SERVICE_TOKEN: ci-service-token-aaaaaaaaaaaaaaaaaaaaaaaa
+      BACKEND_API_JWT_SECRET: ci-jwt-secret-bbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      LOCAL_STORAGE_SIGNING_KEY: ci-storage-signing-cccccccccccccccccccccccc
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f docker-compose.uat.yml config --quiet
+      - run: docker compose -f docker-compose.uat.yml build virtuallab backend-api lti-backend
+      - run: docker compose -f docker-compose.uat.yml up -d --wait --wait-timeout 240
+      - run: docker compose -f docker-compose.uat.yml ps
+      - name: Verify same-origin LTI readiness route
+        run: |
+          body="$(curl --fail --silent --show-error http://127.0.0.1:3000/lti/health/ready)"
+          printf '%s' "$body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"'
+      - name: Preserve diagnostics when startup fails
+        if: failure()
+        run: |
+          docker compose -f docker-compose.uat.yml ps || true
+          docker compose -f docker-compose.uat.yml logs --tail=200 backend-api lti-backend || true
+          backend_container="$(docker compose -f docker-compose.uat.yml ps -q backend-api)"
+          if [ -n "$backend_container" ]; then
+            docker inspect --format '{{range .State.Health.Log}}{{println .Output}}{{end}}' "$backend_container" || true
+          fi
+      - name: Remove ephemeral CI stack
+        if: always()
+        run: docker compose -f docker-compose.uat.yml down -v --remove-orphans
+
+  container-security:
+    name: Nginx runtime security controls
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh scripts/verify-nginx-security.sh
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml

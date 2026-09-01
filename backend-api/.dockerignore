@@ -1,0 +1,10 @@
+.git*
+**/*.pyc
+.venv/
+venv/
+.env
+.env*
+gcloud/
+**/*credential*.json
+**/*credentials*.json
+**/*secret*.json

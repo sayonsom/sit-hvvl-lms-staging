@@ -1,0 +1,66 @@
+{    "variables": {
+        "chargingVoltage": {
+            "variableLabel": "Charging Voltage (Vo)",
+            "variableDescription": "Unit: kilovolts (kV) | ",
+            "initial": 100,
+            "max": 100000,
+            "min": 0
+        },
+        "groundCapacitance": {
+            "variableLabel": "Ground Capacitance (Cg)",
+            "variableDescription": "Unit: microFarads | ",
+            "initial": 300,
+            "max": 1000,
+            "min": 100
+        },
+        "tailCapacitance": {
+            "variableLabel": "Tail Capacitance (C1)",
+            "variableDescription": "Unit: microFarads | ",
+            "initial": 10,
+            "max": 1000,
+            "min": 0
+        },
+        "frontResistance": {
+            "variableLabel": "Front Resistance (Rf)",
+            "variableDescription": "Unit: ohm (Ω) | ",
+            "initial": 500,
+            "max": 10000,
+            "min": 0
+        },
+        "tailResistance": {
+            "variableLabel": "Tail Resistance (Rt)",
+            "variableDescription": "Unit: ohm (Ω) | ",
+            "initial": 1000,
+            "max": 10000,
+            "min": 0
+        },
+        "sphereGap": {
+            "variableLabel": "Sphere Gap",
+            "variableDescription": "Unit: centimeters (cm) | ",
+            "initial": 30,
+            "max": 100,
+            "min": 10
+        },
+        "timeStep": {
+            "variableLabel": "Simulation Timestep",
+            "variableDescription": "Unit: microseconds | ",
+            "initial": 0.01,
+            "max": 1,
+            "min": 0
+        },
+        "totalTime": {
+            "variableLabel": "Total Simulation Time",
+            "variableDescription": "Unit: microseconds | ",
+            "initial": 180,
+            "max": 3600,
+            "min": 0.1
+        }
+       
+    },
+    "output_plot": {
+        "xAxisLabel": "Time (seconds)",
+        "yAxisLabel": "Voltage (volts)",
+        "title": "V-t curve to study characteristics of Impulse Voltage Generator"
+    },
+    "compute": "exp1_impulse_voltage_generator/exp1_impulsevoltagegenerator.js"
+}

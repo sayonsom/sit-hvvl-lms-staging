@@ -1,0 +1,52 @@
+{
+    "variables": {
+        "sendingEndVoltage": {
+            "variableLabel": "Sending End Voltage (Vs)",
+            "variableDescription": "Unit: volts (V) | Typical range: 100-500V",
+            "initial": 110,
+            "max": 500,
+            "min": 10
+        },
+        "lineLength": {
+            "variableLabel": "Line Length",
+            "variableDescription": "Unit: kilometers (km) | Ferranti effect is more pronounced for longer lines (>150 km)",
+            "initial": 200,
+            "max": 500,
+            "min": 10
+        },
+        "capacitancePerKm": {
+            "variableLabel": "Capacitance per km (C)",
+            "variableDescription": "Unit: nanoFarads/km | Typical range: 8-15 nF/km for overhead lines",
+            "initial": 10,
+            "max": 30,
+            "min": 1
+        },
+        "inductancePerKm": {
+            "variableLabel": "Inductance per km (L)",
+            "variableDescription": "Unit: milliHenry/km | Typical range: 0.8-1.5 mH/km for overhead lines",
+            "initial": 1.0,
+            "max": 3,
+            "min": 0.5
+        },
+        "resistancePerKm": {
+            "variableLabel": "Resistance per km (R)",
+            "variableDescription": "Unit: ohm/km | Typical range: 0.01-0.1 Ω/km",
+            "initial": 0.03,
+            "max": 0.5,
+            "min": 0.001
+        },
+        "frequency": {
+            "variableLabel": "System Frequency (f)",
+            "variableDescription": "Unit: Hertz (Hz) | 50Hz for Singapore/Europe, 60Hz for USA",
+            "initial": 50,
+            "max": 60,
+            "min": 50
+        }
+    },
+    "output_plot": {
+        "xAxisLabel": "Distance (km)",
+        "yAxisLabel": "Receiving End Voltage (V)",
+        "title": "Ferranti Effect: Receiving End Voltage vs Line Length"
+    },
+    "compute": "exp3_ferranti_effect/exp3_ferranti.js"
+}

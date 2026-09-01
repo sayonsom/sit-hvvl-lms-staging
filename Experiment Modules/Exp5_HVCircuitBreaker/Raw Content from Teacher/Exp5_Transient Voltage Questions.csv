@@ -1,0 +1,11 @@
+﻿Question,Question_Type,Option_A,Option_B,Option_C,Option_D,Correct_Answer
+What is the voltage that appears across the terminals of a high voltage circuit breaker after an interruption called?,multiple_choice,Fault Voltage,Switching Voltage,Transient Recovery Voltage (TRV),Grounding Voltage,c) Transient Recovery Voltage (TRV)
+Which of the following is NOT a factor affecting TRV?,multiple_choice,System inductance,Fault current level,Circuit breaker type,System voltage level,d) System voltage level
+What is the main objective of a TRV study?,multiple_choice,To measure the current flowing through the breaker,To determine the breaker's operating temperature,To verify the breaker can withstand the expected TRV during a fault,To calculate the power consumption of the system,c) To verify the breaker can withstand the expected TRV during a fault
+Which type of fault is most challenging for a circuit breaker to clear in terms of TRV?,multiple_choice,Single-phase to ground fault,Three-phase ungrounded fault,Double-phase to ground fault,Line-to-line fault,c) Double-phase to ground fault
+What is the term for a breakdown that occurs between the poles of a circuit breaker due to high TRV?,multiple_choice,Short circuit,Re-ignition/Restrike,Voltage collapse,Open circuit,b) Re-ignition/Restrike
+What is the initial stage of TRV characterized by?,multiple_choice,Steady-state voltage,High-frequency oscillations,Power frequency voltage,Low voltage,b) High-frequency oscillations
+Which type of TRV waveshape is observed in transformer-fed faults?,multiple_choice,Triangular,Saw-tooth,1-Cosine,Exponential cosine,d) Exponential cosine
+How long does the TRV typically last?,multiple_choice,Seconds,Microseconds,Picoseconds,Minutes,b) Microseconds
+What information is required to compare prospective TRVs with breaker inherent TRV?,multiple_choice,Breaker size and material,"Breaker class, voltage, short-circuit current, and fault type",System load and power factor,Manufacturer's serial number,"b) Breaker class, voltage, short-circuit current, and fault type"
+What type of fault is typically simulated for breakers disconnecting reactors?,multiple_choice,Line-to-line fault,Transformer limited fault,Single-phase to ground fault,Three-phase grounded fault,d) Three-phase grounded fault

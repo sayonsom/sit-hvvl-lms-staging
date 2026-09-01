@@ -1,0 +1,7 @@
+title = "SIT HVVL LMS gitleaks configuration"
+
+[[allowlists]]
+description = "Historical Auth0 SPA client ID example; public OAuth client identifier, not a client secret. Current .env.example uses placeholders."
+commits = ["80d34490563a5fcfb232d2e6ae620b7a0db08c2a"]
+paths = [".env.example"]
+regexes = ["REACT_APP_AUTH0_CLIENT_ID=.*"]

@@ -1,0 +1,149 @@
+##
+## All-in-one local deployment: Frontend + LTI Backend + Main API + PostgreSQL + Redis
+## Usage:
+##   docker compose -f docker-compose.local.yml up -d --build
+##
+## After first run, the DB is seeded with the HV Engineering course (5 modules, 44 quiz questions).
+## Access the app at http://localhost:3000
+##
+
+services:
+  # ──────────────────────────────────────────────
+  # Frontend (React + Nginx)
+  # ──────────────────────────────────────────────
+  virtuallab:
+    build: .
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    environment:
+      - REACT_APP_API_URL=/api/v1
+      - REACT_APP_LTI_API_URL=
+      - REACT_APP_MAPS_API=
+      # Staff/Admin login via ADFS (optional - leave blank to disable)
+      - REACT_APP_AAD_CLIENT_ID=${REACT_APP_AAD_CLIENT_ID:-}
+      - REACT_APP_AAD_TENANT_ID=${REACT_APP_AAD_TENANT_ID:-}
+      - REACT_APP_AAD_AUTHORITY=${REACT_APP_AAD_AUTHORITY:-}
+      - REACT_APP_AAD_REDIRECT_URI=${REACT_APP_AAD_REDIRECT_URI:-}
+      - REACT_APP_AAD_SCOPES=${REACT_APP_AAD_SCOPES:-}
+      - REACT_APP_AAD_ALLOWED_GROUP_IDS=${REACT_APP_AAD_ALLOWED_GROUP_IDS:-}
+      - REACT_APP_AAD_ALLOWED_ROLES=${REACT_APP_AAD_ALLOWED_ROLES:-}
+      - REACT_APP_AAD_ALLOWED_EMAIL_DOMAIN=${REACT_APP_AAD_ALLOWED_EMAIL_DOMAIN:-}
+      - REACT_APP_AAD_ALLOWED_EMAILS=${REACT_APP_AAD_ALLOWED_EMAILS:-}
+      # Nginx proxy points to local backend-api container (NOT Cloud Run)
+      - BACKEND_API_URL=http://backend-api:8080/api/v1
+      - ENABLE_DEBUG_ROUTES=${ENABLE_DEBUG_ROUTES:-true}
+      - CSP_FRAME_ANCESTORS=${CSP_FRAME_ANCESTORS:-'self' http://localhost:3000}
+    depends_on:
+      - lti-backend
+      - backend-api
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # LTI Backend (FastAPI - auth, sessions)
+  # ──────────────────────────────────────────────
+  lti-backend:
+    build:
+      context: ./backend-lti
+    environment:
+      - CLIENT_ID=${CLIENT_ID:-REPLACE_WITH_BRIGHTSPACE_CLIENT_ID}
+      - DEPLOYMENT_ID=${DEPLOYMENT_ID:-REPLACE_WITH_BRIGHTSPACE_DEPLOYMENT_ID}
+      - ISSUER=${ISSUER:-https://xsitestg.singaporetech.edu.sg}
+      - AUTHORIZATION_ENDPOINT=${AUTHORIZATION_ENDPOINT:-https://xsitestg.singaporetech.edu.sg/d2l/lti/authenticate}
+      - KEY_SET_URL=${KEY_SET_URL:-https://xsitestg.singaporetech.edu.sg/d2l/.well-known/jwks}
+      - TOOL_URL=${TOOL_URL:-${SITE_URL:-http://localhost:3000}}
+      - FRONTEND_URL=${FRONTEND_URL:-${SITE_URL:-http://localhost:3000}}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=${REDIS_DB:-0}
+      - REDIS_SSL=false
+      - SESSION_TTL=${SESSION_TTL:-28800}
+      - STATE_TTL=${STATE_TTL:-300}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-${SITE_URL:-http://localhost:3000}}
+      # Point LTI backend to local API (for student sync)
+      - BACKEND_API_URL=http://backend-api:8080/api/v1
+      - BACKEND_API_SERVICE_TOKEN=${BACKEND_API_SERVICE_TOKEN:-local-dev-service-token}
+      - BACKEND_API_JWT_SECRET=${BACKEND_API_JWT_SECRET:-local-dev-jwt-secret}
+      - BACKEND_API_JWT_AUDIENCE=${BACKEND_API_JWT_AUDIENCE:-hvvl-backend-api}
+      # Staff OIDC (optional)
+      - STAFF_OIDC_CLIENT_ID=${REACT_APP_AAD_CLIENT_ID:-}
+      - STAFF_OIDC_AUTHORITY=${REACT_APP_AAD_AUTHORITY:-}
+      - STAFF_OIDC_REDIRECT_URI=${REACT_APP_AAD_REDIRECT_URI:-}
+      - STAFF_OIDC_SCOPES=${REACT_APP_AAD_SCOPES:-openid}
+      - STAFF_OIDC_POST_LOGOUT_REDIRECT_URI=${TOOL_URL:-${SITE_URL:-http://localhost:3000}}/staff
+      - STAFF_ADMIN_EMAILS=${STAFF_ADMIN_EMAILS:-}
+      - STAFF_COURSE_IDS=${STAFF_COURSE_IDS:-2}
+      - DEBUG=${DEBUG:-true}
+      - ENABLE_API_DOCS=${ENABLE_API_DOCS:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # Main Backend API (FastAPI - courses, quizzes)
+  # ──────────────────────────────────────────────
+  backend-api:
+    build:
+      context: ./backend-api
+      dockerfile: Dockerfile.local
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=aligndb
+      - DB_USER=alignuser
+      - DB_PASSWORD=local-dev-password-change-me
+      - ENVIRONMENT=local
+      - LOCAL_STORAGE_PATH=/code/local_storage
+      - STORAGE_BUCKET_NAME=align-hvl-2024-release1
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - API_SERVICE_TOKEN=${BACKEND_API_SERVICE_TOKEN:-local-dev-service-token}
+      - BACKEND_API_JWT_SECRET=${BACKEND_API_JWT_SECRET:-local-dev-jwt-secret}
+      - BACKEND_API_JWT_AUDIENCE=${BACKEND_API_JWT_AUDIENCE:-hvvl-backend-api}
+      - LOCAL_STORAGE_SIGNING_KEY=${LOCAL_STORAGE_SIGNING_KEY:-local-dev-storage-signing-key}
+      - ENABLE_API_DOCS=${ENABLE_API_DOCS:-true}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      - TRUSTED_PROXY_HOSTS=${TRUSTED_PROXY_HOSTS:-127.0.0.1,localhost}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - local_storage_data:/code/local_storage
+      - ./3d_models:/3d_models_src:ro
+      - ./content_files:/content_files_src:ro
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # PostgreSQL
+  # ──────────────────────────────────────────────
+  postgres:
+    build:
+      context: ./backend-api/sql
+      dockerfile: Dockerfile.postgres
+    environment:
+      POSTGRES_DB: aligndb
+      POSTGRES_USER: alignuser
+      POSTGRES_PASSWORD: local-dev-password-change-me
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alignuser -d aligndb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # Redis (session store)
+  # ──────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  local_storage_data:

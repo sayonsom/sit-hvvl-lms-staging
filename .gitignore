@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build / test artifacts
+build/
+coverage/
+logs/
+output/
+
+# Environment / secrets
+.env
+.env.bak
+.env.local
+.env.local.bak
+.env.development.local
+.env.test.local
+.env.production.local
+.env.uat
+.env.*.bak
+backend-lti/.env
+backend-lti/.env.bak
+align-google-credentials.json
+
+# Python virtualenv (backend)
+backend-lti/venv/
+backend-lti/.venv/
+
+# Tooling / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.pid
+
+# SCORM packages / archives
+sithvl-scorm-package/
+sithvl-scorm-package2/
+*.zip
+
+# Screenshots (delivery artifacts — share separately)
+screenshots/
+
+# Backend API Python cache
+__pycache__/
+*.py[cod]
+backend-api/__pycache__/
+backend-api/**/__pycache__/
+backend-api/venv/
+backend-api/.venv/
+backend-api/local_storage/

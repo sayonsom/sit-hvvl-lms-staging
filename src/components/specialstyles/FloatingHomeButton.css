@@ -1,0 +1,15 @@
+/* FloatingButton.css */
+.floating-btn {
+    position: fixed; /* Fixed position */
+    bottom: 20px; /* 20px from the bottom */
+    right: 20px; /* 20px from the left */
+    background-color: #bdbdbd; /* Blue background color */
+    color: white; /* White text color */
+    border: none; /* No border */
+    border-radius: 50%; /* Round shape */
+    padding: 15px 20px; /* Padding for size */
+    font-size: 18px; /* Font size */
+    cursor: pointer; /* Cursor changes to pointer on hover */
+    box-shadow: 8px 8px 10px rgba(0,0,0,0.3); /* Shadow for 3D effect */
+    z-index: 1000; /* High z-index to float above everything */
+  }

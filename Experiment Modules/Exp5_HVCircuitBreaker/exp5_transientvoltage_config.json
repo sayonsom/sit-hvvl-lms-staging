@@ -1,0 +1,52 @@
+{    "variables": {
+    "resistance": {
+        "variableLabel": "Resistance (R)",
+        "variableDescription": "Unit: ohms | ",
+        "initial": 10,
+        "max": 1000,
+        "min": 0.1
+    },
+    "inductance": {
+        "variableLabel": "Inductance (L)",
+        "variableDescription": "Unit: Henry |The typical range is 0.0004 - 0.02 Henry",
+        "initial": 0.005,
+        "max": 0.02,
+        "min": 0.0004
+    },
+    "capacitance": {
+        "variableLabel": "Capacitance (C)",
+        "variableDescription": "Unit: Farads | The typical range is 0.1µF-2µF",
+        "initial": 0.000001,
+        "max": 0.001,
+        "min": 0.0000001
+    },
+    "initialCurrent": {
+        "variableLabel": "Initial Current",
+        "variableDescription": "Unit: Ampere | ",
+        "initial": 1,
+        "max": 500,
+        "min": 0.001
+    },
+    "timeStep": {
+        "variableLabel": "Simulation Timestep",
+        "variableDescription": "Unit: microseconds | ",
+        "initial": 0.001,
+        "max": 1,
+        "min": 0
+    },
+    "totalTime": {
+        "variableLabel": "Total Simulation Time",
+        "variableDescription": "Unit: microseconds | ",
+        "initial": 0.3,
+        "max": 1,
+        "min": 0.1
+    }
+   
+},
+"output_plot": {
+    "xAxisLabel": "Simulation Time",
+    "yAxisLabel": "Voltage (kV)",
+    "title": "Transient Voltage"
+},
+"compute": "exp5_transient_recovery_voltage/exp5_transientVoltage.js"
+}

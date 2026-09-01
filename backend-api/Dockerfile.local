@@ -1,0 +1,93 @@
+# Dockerfile for local development without GCP dependencies
+FROM python:3.11-slim
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    wget \
+    curl \
+    gnupg \
+    unixodbc-dev \
+    ca-certificates \
+    postgresql-client \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set work directory for our application
+WORKDIR /code
+
+# Upgrade pip and install Python dependencies
+COPY requirements.txt /code/
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy application files
+COPY . /code
+
+# Create local storage directory
+RUN mkdir -p /code/local_storage
+
+# Set default local environment variables for PostgreSQL
+ENV DB_HOST=postgres
+ENV DB_PORT=5432
+ENV DB_NAME=aligndb
+ENV DB_USER=alignuser
+ENV ENVIRONMENT=local
+ENV LOCAL_STORAGE_PATH=/code/local_storage
+ENV STORAGE_BUCKET_NAME=align-hvl-2024-release1
+
+# Create wait script for PostgreSQL readiness + 3D model seeding
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+host="$1"\n\
+shift\n\
+cmd="$@"\n\
+\n\
+: "${DB_PASSWORD:?DB_PASSWORD is required}"\n\
+\n\
+until PGPASSWORD=$DB_PASSWORD psql -h "$host" -U "$DB_USER" -d "$DB_NAME" -c "\\q"; do\n\
+  >&2 echo "Postgres is unavailable - sleeping"\n\
+  sleep 1\n\
+done\n\
+\n\
+>&2 echo "Postgres is up"\n\
+\n\
+# Seed 3D model files from bind-mounted source (if present)\n\
+if [ -d /3d_models_src ]; then\n\
+  BUCKET_DIR="$LOCAL_STORAGE_PATH/$STORAGE_BUCKET_NAME"\n\
+  mkdir -p "$BUCKET_DIR/exp3_ferranti_effect"\n\
+  mkdir -p "$BUCKET_DIR/exp1_impulse_voltage_generator"\n\
+  mkdir -p "$BUCKET_DIR/exp2_3stage_cockroft_walton"\n\
+  mkdir -p "$BUCKET_DIR/exp4_partial_discharge"\n\
+  mkdir -p "$BUCKET_DIR/exp5_transient_recovery_voltage"\n\
+  [ -f /3d_models_src/ferranti_effect.glb ] && cp /3d_models_src/ferranti_effect.glb "$BUCKET_DIR/exp3_ferranti_effect/ferranti_effect.glb"\n\
+  [ -f /3d_models_src/impulse_voltage_generator.glb ] && cp /3d_models_src/impulse_voltage_generator.glb "$BUCKET_DIR/exp1_impulse_voltage_generator/impulse_voltage_generator.glb"\n\
+  [ -f /3d_models_src/impulse_voltage_generator.glb ] && cp /3d_models_src/impulse_voltage_generator.glb "$BUCKET_DIR/exp1_impulse_voltage_generator/impulse_voltage_generator.gltf"\n\
+  [ -f /3d_models_src/cockroft-walton.glb ] && cp /3d_models_src/cockroft-walton.glb "$BUCKET_DIR/exp2_3stage_cockroft_walton/cockroft-walton.glb"\n\
+  [ -f /3d_models_src/partialDischarge.glb ] && cp /3d_models_src/partialDischarge.glb "$BUCKET_DIR/exp4_partial_discharge/partialDischarge.glb"\n\
+  >&2 echo "3D models seeded into $BUCKET_DIR"\n\
+fi\n\
+\n\
+# Seed content files (theory markdown, experiment configs, compute JS)\n\
+if [ -d /content_files_src ]; then\n\
+  BUCKET_DIR="$LOCAL_STORAGE_PATH/$STORAGE_BUCKET_NAME"\n\
+  for exp_dir in /content_files_src/*/; do\n\
+    exp_name=$(basename "$exp_dir")\n\
+    mkdir -p "$BUCKET_DIR/$exp_name"\n\
+    cp -r "$exp_dir"* "$BUCKET_DIR/$exp_name/" 2>/dev/null || true\n\
+  done\n\
+  >&2 echo "Content files seeded into $BUCKET_DIR"\n\
+fi\n\
+\n\
+>&2 echo "Starting server"\n\
+exec $cmd' > /wait-for-postgres.sh && chmod +x /wait-for-postgres.sh
+
+# Expose FastAPI port
+EXPOSE 8080
+
+# Use shell so environment variables expand at runtime
+CMD ["/wait-for-postgres.sh", "postgres", "gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "-t", "3000", "--bind", "0.0.0.0:8080", "main:app"]

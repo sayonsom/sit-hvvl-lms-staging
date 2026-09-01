@@ -1,0 +1,8 @@
+Question,Question_Type,Option_A,Option_B,Option_C,Option_D,Correct_Answer
+What is the purpose of a Cockcroft-Walton generator?,multiple_choice,To generate high current,To generate high voltage,To generate high frequency,To generate steady DC voltage,To generate high voltage
+How many diodes are used in a 3-stage Cockcroft-Walton generator?,multiple_choice,3,6,9,12,6
+What is the main advantage of using a Cockcroft-Walton generator?,multiple_choice,High efficiency,Simple design,Low cost,Compact size,Simple design
+What is the main disadvantage of a Cockcroft-Walton generator?,multiple_choice,Large size,Voltage drop,Complex design,Ripple voltage,Ripple voltage
+What type of components are used to construct a Cockcroft-Walton generator?,multiple_choice,Resistors and capacitors,Diodes and capacitors,Transistors and inductors,Transformers and resistors,Diodes and capacitors
+What is the typical application of a Cockcroft-Walton generator?,multiple_choice,Low voltage testing,High current testing,Power amplification,Radiation therapy,Radiation therapy
+How can the output voltage of a Cockcroft-Walton generator be increased?,multiple_choice,By increasing the number of stages,By decreasing the load,By increasing the frequency,By increasing the input voltage,By increasing the number of stages

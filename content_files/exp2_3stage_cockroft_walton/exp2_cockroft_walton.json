@@ -1,0 +1,59 @@
+{    "variables": {
+        "supplyVoltage": {
+            "variableLabel": "Supply Voltage (V)",
+            "variableDescription": "Unit: volts (V) | ",
+            "initial": 220,
+            "max": 100000,
+            "min": 0
+        },
+        "loadCurrent": {
+            "variableLabel": "Load Current (Il)",
+            "variableDescription": "Unit: microAmperes |The typical range is 0.1µA-100µA",
+            "initial": 0.1,
+            "max": 100,
+            "min": 0.1
+        },
+        "stageCapacitance": {
+            "variableLabel": "Stage Capacitance (C)",
+            "variableDescription": "Unit: microFarads | The typical range is 0.1µF-2µF",
+            "initial": 0.1,
+            "max": 3,
+            "min": 0.01
+        },
+        "acFrequency": {
+            "variableLabel": "AC Frequency (f)",
+            "variableDescription": "Unit: Hertz (Hz) | Note that increasing the frequency can dramatically reduce the ripple, and the voltage drop under load. You choose any frequency between 50Hz-5000Hz",
+            "initial": 50,
+            "max": 5000,
+            "min": 50
+        },
+        "numberOfStages": {
+            "variableLabel": "Number of Stages (n)",
+            "variableDescription": "Unit: count | In the 3D model, the number of stages is represented by the number of the gray capacitors. We are showing a 3-stage Cockroft-Walton voltage multiplier. ",
+            "initial": 3,
+            "max": 5,
+            "min": 2
+        },
+        "timeStep": {
+            "variableLabel": "Simulation Timestep",
+            "variableDescription": "Unit: microseconds | ",
+            "initial": 0.01,
+            "max": 1,
+            "min": 0
+        },
+        "totalTime": {
+            "variableLabel": "Total Simulation Time",
+            "variableDescription": "Unit: microseconds | ",
+            "initial": 180,
+            "max": 3600,
+            "min": 0.1
+        }
+       
+    },
+    "output_plot": {
+        "xAxisLabel": "Data Points",
+        "yAxisLabel": "Volts",
+        "title": "Plot of the Ripple Voltage"
+    },
+    "compute": "exp2_3stage_cockroft_walton/exp2_cockroftwalton.js"
+}

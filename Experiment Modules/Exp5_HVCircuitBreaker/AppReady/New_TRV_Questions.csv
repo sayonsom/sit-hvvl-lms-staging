@@ -1,0 +1,11 @@
+Question,Question_Type,Option_A,Option_B,Option_C,Option_D,Correct_Answer
+What is the purpose of a TRV withstand test on a circuit breaker?,multiple_choice,To verify the dielectric strength of the breaker,To ensure the thermal stability of the breaker,To check for mechanical endurance of the breaker,To validate the timing accuracy of the breaker,To verify the dielectric strength of the breaker
+Which component has the most influence on TRV in a transmission network?,multiple_choice,The grounding reactor,The line inductance,The load capacitance,The system neutral earthing,The line inductance
+What parameter is critical when selecting a breaker for high RRRV conditions?,multiple_choice,Rated voltage of the breaker,Breaking time of the breaker,Current rating of the breaker,Dielectric strength of the breaker,Dielectric strength of the breaker
+What does a successful TRV withstand test indicate?,multiple_choice,That the breaker can interrupt fault current safely,That the breaker can withstand over-voltages,That the breaker will not re-ignite,That the breaker will trip instantly,That the breaker can interrupt fault current safely
+Which protection method helps reduce TRV impact on breakers?,multiple_choice,Shunt capacitors,Series reactors,Surge arresters,Current limiters,Surge arresters
+Which TRV characteristic directly influences breaker dielectric recovery?,multiple_choice,Peak voltage magnitude,Frequency of oscillations,Rate of Rise of Recovery Voltage (RRRV),Current waveform,Rate of Rise of Recovery Voltage (RRRV)
+What might result from inadequate TRV control in high-voltage circuits?,multiple_choice,Frequent restrikes,Increased arc duration,Voltage collapse,Loss of synchronism,Frequent restrikes
+How is TRV affected by the circuit's natural frequency?,multiple_choice,It is inversely proportional,It has no effect,It directly correlates,It is dependent on breaker type,It directly correlates
+Which testing standard applies to TRV for DC breakers?,multiple_choice,IEC 61643,IEC 60076,IEEE C37.14,IEC 62271-100,IEC 62271-100
+What is the primary factor in designing breakers for varying TRV levels?,multiple_choice,Contact gap distance,Insulation material,Arc extinction medium,Trip coil design,Insulation material

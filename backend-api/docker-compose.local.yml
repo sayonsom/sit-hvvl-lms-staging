@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: aligndb
+      POSTGRES_USER: alignuser
+      POSTGRES_PASSWORD: local-dev-password-change-me
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/CreateInitialTables.sql:/docker-entrypoint-initdb.d/CreateInitialTables.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alignuser -d aligndb"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  fastapi:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=aligndb
+      - DB_USER=alignuser
+      - DB_PASSWORD=local-dev-password-change-me
+      - ENVIRONMENT=local
+      - LOCAL_STORAGE_PATH=/code/local_storage
+      - STORAGE_BUCKET_NAME=align-hvl-2024-release1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/code
+      - local_storage_data:/code/local_storage
+
+volumes:
+  postgres_data:
+  local_storage_data:
