@@ -19,6 +19,7 @@ That single deployment command:
 - validates the staging URLs and required configuration without printing values;
 - replaces a legacy short PostgreSQL password with a generated strong value;
 - synchronises the password inside the existing PostgreSQL volume;
+- reuses the existing `sit_test_v1` Compose project and its data volumes;
 - preserves PostgreSQL, Redis, and local-storage data volumes;
 - rebuilds the frontend and both APIs from the checked-out source; and
 - waits until all five services report healthy.

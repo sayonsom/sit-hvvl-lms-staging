@@ -13,6 +13,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from deploy_staging import (  # noqa: E402
+    STAGING_COMPOSE_PROJECT,
     STAGING_ORIGIN,
     main,
     prepare_staging_environment,
@@ -107,8 +108,14 @@ class StagingEnvironmentPreparationTests(unittest.TestCase):
         values = valid_environment()
         with tempfile.TemporaryDirectory() as directory:
             env_path = write_environment(directory, values)
-            with mock.patch("deploy_staging.deploy") as deploy_mock:
-                exit_code = main([str(env_path)])
+            with mock.patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("COMPOSE_PROJECT_NAME", None)
+                with mock.patch("deploy_staging.deploy") as deploy_mock:
+                    exit_code = main([str(env_path)])
+                self.assertEqual(
+                    os.environ["COMPOSE_PROJECT_NAME"],
+                    STAGING_COMPOSE_PROJECT,
+                )
 
         self.assertEqual(exit_code, 0)
         deploy_mock.assert_called_once_with(

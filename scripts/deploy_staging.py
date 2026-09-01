@@ -28,6 +28,7 @@ from validate_uat_environment import (
 
 
 STAGING_ORIGIN = "https://hvlabonline-uat.singaporetech.edu.sg"
+STAGING_COMPOSE_PROJECT = "sit_test_v1"
 PASSWORD_VARIABLE = "POSTGRES_PASSWORD"
 PASSWORD_MINIMUM_LENGTH = 16
 
@@ -171,6 +172,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     env_path = Path(args.env_file).resolve()
     try:
         prepare_staging_environment(env_path)
+        # The existing UAT database, Redis, and local-storage volumes were
+        # created under this Compose project name in /usr/local/src/sit_test_v1.
+        # Keep using them even though this repository has a new directory name.
+        os.environ.setdefault("COMPOSE_PROJECT_NAME", STAGING_COMPOSE_PROJECT)
         # Staging's server-owned environment is authoritative. Rotating the
         # role to the configured value on every run makes retries idempotent,
         # including a retry after interruption between file update and ALTER ROLE.
