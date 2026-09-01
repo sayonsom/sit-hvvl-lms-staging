@@ -7,6 +7,10 @@
 ## the local backend-api container. It does not depend on the old Cloud Run API.
 ##
 
+# Keep the established staging container and volume names when this dedicated
+# repository is cloned into a new directory.
+name: sit_test_v1
+
 services:
   virtuallab:
     build: .
