@@ -19,6 +19,14 @@ class StudentCreate(StudentBase):
     profile_picture: Optional[HttpUrl] = None
     location: Optional[str] = None
 
+class StudentProvisionRequest(BaseModel):
+    """Payload for the idempotent LTI provisioning endpoint."""
+    name: str
+    email: EmailStr
+    # Deliberately a plain str: the LTI claim may be absent or a non-URL value.
+    profile_picture: Optional[str] = None
+    course_id: Optional[int] = None
+
 class StudentUpdate(StudentBase):
     profile_picture: Optional[HttpUrl] = None
     location: Optional[str] = None

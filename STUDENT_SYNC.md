@@ -17,19 +17,38 @@ When a user logs in via Brightspace LTI, the system automatically creates or upd
 
 ### Student Sync Logic
 
-The `sync_student_to_backend()` function:
+The `provision_student_for_launch()` function makes one idempotent call:
 
-1. **Check if student exists** (`GET /api/v1/students/{email}`)
-   - If exists: Update login info (`PUT /api/v1/students/{email}/login`)
-   - If not: Create new student
+**`POST /api/v1/students/provision`** (service-token authenticated)
 
-2. **Create new student** (`POST /api/v1/students/`)
-   - Name: From LTI user data
-   - Email: From LTI user data
-   - Profile Picture: From LTI user data (if available)
-   - Date of Birth: null
-   - Location: null
-   - **Auto-enrolls in Course ID 2** (hardcoded in alignbackendapis)
+In a single transaction the backend:
+1. Resolves the target course (see *Course mapping* below) and rejects an unknown one.
+2. Finds the student by **normalized** email (`lower(btrim(email))`), or creates them.
+3. Ensures the enrolment exists, whether the student was just created or already existed.
+
+It returns `{student, student_id, created, enrolled, course_id}`.
+
+The login counter (`PUT /api/v1/students/{email}/login`) is updated afterwards on a
+best-effort basis and never fails a launch.
+
+**A failed provision now fails the launch**, redirecting to
+`/lti-required?error=provisioning_failed&reason=...&ref=...` rather than issuing a
+session with no student record behind it. The previous version discarded the sync
+result, so the only symptom was an empty Enrolled Courses list much later.
+
+### Email normalization
+
+Addresses are lower-cased and trimmed at the LTI boundary and on every backend read
+and write. RBAC already compared them case-insensitively; storing them the same way
+keeps authorization and data lookup from disagreeing (a mismatch previously passed
+the access check and then returned 404).
+
+### Course mapping
+
+`LTI_CONTEXT_COURSE_MAP` maps a validated Brightspace context id to a local course id
+(`<context_id>:<course_id>`, comma separated). Anything unmapped falls back to
+`DEFAULT_LOCAL_COURSE_ID` (default `2`, the previous hardcoded value). A Brightspace
+context id is never used as a local course id directly.
 
 ## Configuration
 
@@ -42,7 +61,7 @@ BACKEND_API_URL=http://localhost:8080/api/v1
 
 **backend-lti/app/main.py:**
 - Added `import httpx`
-- Added `sync_student_to_backend()` function
+- Added `provision_student_for_launch()` function
 - Calls sync after successful JWT validation
 
 ## Testing

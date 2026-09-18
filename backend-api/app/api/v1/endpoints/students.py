@@ -4,9 +4,9 @@ from typing import List, Dict, Any, Optional
 from asyncpg import Connection
 from datetime import timedelta
 import os
-from ....schemas.schemas import StudentCreate, StudentUpdate
+from ....schemas.schemas import StudentCreate, StudentProvisionRequest, StudentUpdate
 from ....storage.local_storage import get_local_storage
-from ....crud.students import get_students, create_student, get_number_of_logins_by_email, delete_student_by_email, enroll_students_in_course,  get_courses_for_student, unenroll_students_from_course, update_student_login_info, get_student_by_email, get_student_id_by_email
+from ....crud.students import DEFAULT_COURSE_ID, get_students, create_student, get_number_of_logins_by_email, delete_student_by_email, enroll_students_in_course,  get_courses_for_student, provision_student, unenroll_students_from_course, update_student_login_info, get_student_by_email, get_student_id_by_email
 from ....core.auth import AuthenticatedActor, get_optional_authenticated_actor, require_authenticated_user, require_service_token, require_staff_actor
 from ....core.rbac import require_student_email_access
 from ....db.connection import get_db_connection
@@ -98,6 +98,33 @@ async def create_student_endpoint(
         new_student = await create_student(conn, student.name, student.email, student.date_of_birth, student.profile_picture, student.location)
         return new_student
     except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# Idempotent provisioning used by the LTI launch
+@router.post("/students/provision", response_model=Dict[str, Any])
+async def provision_student_endpoint(
+    payload: StudentProvisionRequest,
+    conn: Connection = Depends(get_db_connection),
+    _service=Depends(require_service_token),
+):
+    """Ensure a student row and their course enrolment both exist.
+
+    Unlike POST /students/, this is safe to call on every launch: it creates the
+    student when absent and reconciles a missing enrolment for one who already
+    exists. Both happen in a single transaction.
+    """
+    course_id = payload.course_id if payload.course_id is not None else DEFAULT_COURSE_ID
+    try:
+        return await provision_student(
+            conn,
+            name=payload.name,
+            email=payload.email,
+            profile_picture=payload.profile_picture,
+            course_id=course_id,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 # API to find a student by Email

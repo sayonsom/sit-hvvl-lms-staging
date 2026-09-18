@@ -284,7 +284,7 @@ class LTIHandler:
             'name': decoded_token.get('name', 'Unknown User'),
             'given_name': decoded_token.get('given_name', ''),
             'family_name': decoded_token.get('family_name', ''),
-            'email': decoded_token.get('email', ''),
+            'email': (decoded_token.get('email') or '').strip().lower(),
             'picture': decoded_token.get('picture', ''),
             'roles': friendly_roles,
             'sub': decoded_token.get('sub', 'unknown')
