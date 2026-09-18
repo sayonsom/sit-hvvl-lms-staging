@@ -6,11 +6,12 @@ from fastapi import FastAPI, Request, Form, Header, HTTPException, Depends
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import logging
+import uuid
 import httpx
 import time
 import jwt
 from typing import Optional
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from .config import settings
 from .lti_handler import LTIHandler, LTIValidationError
@@ -145,81 +146,89 @@ def ensure_staff_account_allowed(user: dict, claims: dict) -> None:
         raise HTTPException(status_code=403, detail="Staff account is not in an allowed group")
 
 
-async def sync_student_to_backend(user_data: dict) -> bool:
-    """
-    Sync student to alignbackendapis database.
-    Creates student if they don't exist, updates login info if they do.
-    """
-    try:
-        email = user_data.get('email')
-        name = user_data.get('name', 'Unknown User')
-        
-        if not email:
-            logger.warning("No email in user_data, skipping backend sync")
-            return False
-        
-        backend_url = settings.BACKEND_API_URL
-        
-        # Check if student exists
-        service_headers = {}
-        if settings.BACKEND_API_SERVICE_TOKEN:
-            service_headers["X-Service-Token"] = settings.BACKEND_API_SERVICE_TOKEN
+class StudentProvisioningError(Exception):
+    """Raised when a launch cannot be backed by a real student record."""
 
+    def __init__(self, reason: str):
+        self.reason = reason
+        super().__init__(reason)
+
+
+async def provision_student_for_launch(user_data: dict, course_data: dict) -> dict:
+    """Ensure the launching learner has a student record and a course enrolment.
+
+    Replaces the previous create-only sync. That version could not repair a
+    student who existed without an enrolment, and its `except httpx.HTTPStatusError`
+    branch was dead code (httpx does not raise unless raise_for_status() is called),
+    so any non-200 existence check fell through into a duplicate create attempt.
+
+    Raises StudentProvisioningError so the caller can fail the launch loudly
+    instead of issuing a session with nothing behind it.
+    """
+    email = (user_data.get("email") or "").strip().lower()
+    name = user_data.get("name") or "Unknown User"
+
+    if not email:
+        logger.error("LTI launch carried no email claim; cannot provision a student")
+        raise StudentProvisioningError("missing_email")
+
+    if not settings.BACKEND_API_SERVICE_TOKEN:
+        logger.error("BACKEND_API_SERVICE_TOKEN is not configured; cannot provision a student")
+        raise StudentProvisioningError("service_token_not_configured")
+
+    course_id = settings.local_course_id_for_context(course_data.get("course_id"))
+
+    profile_pic = user_data.get("picture")
+    if not profile_pic or not profile_pic.strip():
+        profile_pic = f"https://ui-avatars.com/api/?name={quote(name)}&size=200"
+
+    backend_url = settings.BACKEND_API_URL
+    service_headers = {"X-Service-Token": settings.BACKEND_API_SERVICE_TOKEN}
+    payload = {
+        "name": name,
+        "email": email,
+        "profile_picture": profile_pic,
+        "course_id": course_id,
+    }
+
+    try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            try:
-                # Try to get student
-                response = await client.get(
-                    f"{backend_url}/students/{email}",
-                    headers=service_headers,
-                )
-                
-                if response.status_code == 200:
-                    # Student exists, update login info
-                    logger.info(f"Student {email} exists, updating login info")
-                    login_response = await client.put(
-                        f"{backend_url}/students/{email}/login",
-                        headers=service_headers,
-                    )
-                    if login_response.status_code == 200:
-                        logger.info(f"Updated login info for {email}")
-                    return True
-                    
-            except httpx.HTTPStatusError:
-                pass  # Student doesn't exist, create them
-            
-            # Student doesn't exist, create them
-            logger.info(f"Creating new student: {email}")
-            
-            # Get profile picture or use a default placeholder
-            profile_pic = user_data.get('picture')
-            if not profile_pic or profile_pic.strip() == '':
-                # Use a default gravatar or placeholder
-                profile_pic = f"https://ui-avatars.com/api/?name={name.replace(' ', '+')}&size=200"
-            
-            student_data = {
-                "name": name,
-                "email": email,
-                "date_of_birth": None,
-                "profile_picture": profile_pic,
-                "location": None
-            }
-            
-            create_response = await client.post(
-                f"{backend_url}/students/",
-                json=student_data,
+            response = await client.post(
+                f"{backend_url}/students/provision",
+                json=payload,
                 headers=service_headers,
             )
-            
-            if create_response.status_code in [200, 201]:
-                logger.info(f"Successfully created student {email}")
-                return True
-            else:
-                logger.error(f"Failed to create student: {create_response.status_code} - {create_response.text}")
-                return False
-                
-    except Exception as e:
-        logger.error(f"Error syncing student to backend: {str(e)}", exc_info=True)
-        return False
+    except httpx.RequestError as e:
+        logger.error("Student provisioning could not reach the backend API: %s", e)
+        raise StudentProvisioningError("backend_unreachable") from e
+
+    if response.status_code not in (200, 201):
+        logger.error(
+            "Student provisioning failed for course %s: %s - %s",
+            course_id, response.status_code, response.text,
+        )
+        raise StudentProvisioningError(f"provision_http_{response.status_code}")
+
+    result = response.json()
+    logger.info(
+        "Provisioned student id=%s created=%s enrolled=%s course=%s",
+        result.get("student_id"), result.get("created"), result.get("enrolled"), course_id,
+    )
+
+    # The login counter is telemetry, not access: never fail a launch on it.
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            login_response = await client.put(
+                f"{backend_url}/students/{quote(email, safe='')}/login",
+                headers=service_headers,
+            )
+        if login_response.status_code != 200:
+            logger.warning("Login counter update returned %s", login_response.status_code)
+    except httpx.RequestError as e:
+        logger.warning("Login counter update failed: %s", e)
+
+    return result
+
 
 
 @app.get("/health")
@@ -316,8 +325,23 @@ async def lti_launch(
         # Handle the launch and validate token
         user_data, course_data = lti_handler.handle_launch(id_token, state)
         
-        # Sync student with backend API
-        await sync_student_to_backend(user_data)
+        # A learner must have a backing student record before a session is issued.
+        # Previously this result was discarded, so a provisioning failure still
+        # produced a working login whose course list was silently empty.
+        try:
+            await provision_student_for_launch(user_data, course_data)
+        except StudentProvisioningError as e:
+            ref = uuid.uuid4().hex[:12]
+            logger.error("Launch provisioning failed (ref=%s): %s", ref, e.reason)
+            query = urlencode({
+                "error": "provisioning_failed",
+                "reason": e.reason,
+                "ref": ref,
+            })
+            return RedirectResponse(
+                url=f"{settings.FRONTEND_URL}/lti-required?{query}",
+                status_code=302,
+            )
         
         # Create session
         session_token = session_manager.create_session(user_data, course_data)

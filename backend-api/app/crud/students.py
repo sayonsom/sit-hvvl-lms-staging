@@ -1,7 +1,34 @@
 from typing import List, Dict, Any, Optional
 import asyncpg
 from datetime import datetime
-from ..db.connection import get_db_connection
+
+
+# Course every LTI learner falls back to when no explicit context mapping is supplied.
+DEFAULT_COURSE_ID = 2
+
+
+def normalize_email(email: Optional[str]) -> Optional[str]:
+    """Canonical form used for every stored and looked-up address.
+
+    The RBAC layer already compares addresses case-insensitively; storing and
+    querying the same way keeps authorization and data lookup from disagreeing.
+    """
+    return email.strip().lower() if isinstance(email, str) and email.strip() else None
+
+
+async def _ensure_enrollment(conn: asyncpg.Connection, student_id: int, course_id: int) -> bool:
+    """Insert the enrolment only when it is absent. Returns True when one was written."""
+    status = await conn.execute(
+        """
+        INSERT INTO enrollments (student_id, course_id, enrollment_date)
+        SELECT $1, $2, $3
+        WHERE NOT EXISTS (
+            SELECT 1 FROM enrollments WHERE student_id = $1 AND course_id = $2
+        )
+        """,
+        student_id, course_id, datetime.now(),
+    )
+    return status.rsplit(" ", 1)[-1] == "1"
 
 
 # Get all students
@@ -20,32 +47,99 @@ async def get_students(conn) -> List[Dict[str, Any]]:
 
 
 async def get_student_by_email(conn: asyncpg.Connection, email: str) -> Optional[Dict[str, Any]]:
-    student = await conn.fetchrow("SELECT * FROM students WHERE email = $1", email)
+    normalized = normalize_email(email)
+    if not normalized:
+        return None
+    student = await conn.fetchrow(
+        "SELECT * FROM students WHERE lower(btrim(email)) = $1 ORDER BY student_id LIMIT 1",
+        normalized,
+    )
     if student:
         return dict(student)
     return None
 
-async def create_student(conn: asyncpg.Connection, name: str, email: str, date_of_birth: Optional[str], profile_picture: Optional[str], location: Optional[str]) -> Dict[str, Any]:
-    query = """
-        INSERT INTO students (name, email, date_of_birth, profile_picture, location) VALUES ($1, $2, $3, $4, $5)
-        RETURNING *
+async def create_student(conn: asyncpg.Connection, name: str, email: str, date_of_birth: Optional[str], profile_picture: Optional[str], location: Optional[str], course_id: int = DEFAULT_COURSE_ID) -> Dict[str, Any]:
+    """Create a student and their default enrolment as one atomic unit.
+
+    Previously the INSERT and the enrolment were separate statements, so a
+    failure after the INSERT left a student who could log in but had no course.
     """
-    student = await conn.fetchrow(query, name, email, date_of_birth, profile_picture, location)
-    
-    # Enroll in course ID 1 by default
-    await enroll_students_in_course(conn, 2, [email])
-    
+    normalized = normalize_email(email)
+    if not normalized:
+        raise ValueError("A valid email address is required to create a student")
+
+    async with conn.transaction():
+        query = """
+            INSERT INTO students (name, email, date_of_birth, profile_picture, location) VALUES ($1, $2, $3, $4, $5)
+            RETURNING *
+        """
+        student = await conn.fetchrow(query, name, normalized, date_of_birth, profile_picture, location)
+        await _ensure_enrollment(conn, student["student_id"], course_id)
+
     return dict(student)
+
+
+async def provision_student(
+    conn: asyncpg.Connection,
+    name: str,
+    email: str,
+    profile_picture: Optional[str] = None,
+    course_id: int = DEFAULT_COURSE_ID,
+    date_of_birth: Optional[str] = None,
+    location: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Idempotently ensure both a student row and a course enrolment exist.
+
+    Safe to call on every launch: it reconciles a student who already exists but
+    is missing the enrolment, which the create-only path could never repair.
+    """
+    normalized = normalize_email(email)
+    if not normalized:
+        raise ValueError("A valid email address is required to provision a student")
+
+    async with conn.transaction():
+        course_exists = await conn.fetchval("SELECT 1 FROM courses WHERE course_id = $1", course_id)
+        if not course_exists:
+            raise LookupError(f"Course {course_id} does not exist")
+
+        student = await conn.fetchrow(
+            "SELECT * FROM students WHERE lower(btrim(email)) = $1 ORDER BY student_id LIMIT 1",
+            normalized,
+        )
+
+        created = False
+        if student is None:
+            # ON CONFLICT covers two launches racing on the same new student.
+            student = await conn.fetchrow(
+                """
+                INSERT INTO students (name, email, date_of_birth, profile_picture, location)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
+                RETURNING *
+                """,
+                name, normalized, date_of_birth, profile_picture, location,
+            )
+            created = True
+
+        enrolled = await _ensure_enrollment(conn, student["student_id"], course_id)
+
+    return {
+        "student": dict(student),
+        "student_id": student["student_id"],
+        "created": created,
+        "enrolled": enrolled,
+        "course_id": course_id,
+    }
 
 async def update_student_login_info(conn: asyncpg.Connection, email: str) -> Optional[Dict[str, Any]]:
     query = """
         UPDATE students
         SET number_of_logins = number_of_logins + 1,
             last_login = CURRENT_TIMESTAMP
-        WHERE email = $1
+        WHERE lower(btrim(email)) = $1
         RETURNING number_of_logins, last_login
     """
-    login_info = await conn.fetchrow(query, email)
+    login_info = await conn.fetchrow(query, normalize_email(email))
     if login_info:
         return dict(login_info)
     return None
@@ -54,32 +148,36 @@ async def get_number_of_logins_by_email(conn: asyncpg.Connection, email: str) ->
     query = """
         SELECT number_of_logins
         FROM students
-        WHERE email = $1
+        WHERE lower(btrim(email)) = $1
     """
-    login_count = await conn.fetchval(query, email)
+    login_count = await conn.fetchval(query, normalize_email(email))
     return login_count
 
 async def delete_student_by_email(conn: asyncpg.Connection, email: str) -> Dict[str, Any]:
-    query_select = "SELECT * FROM students WHERE email = $1"
-    student = await conn.fetchrow(query_select, email)
+    normalized = normalize_email(email)
+    query_select = "SELECT * FROM students WHERE lower(btrim(email)) = $1"
+    student = await conn.fetchrow(query_select, normalized)
     if not student:
         raise ValueError("Student not found")
-    
-    query_delete = "DELETE FROM students WHERE email = $1 RETURNING *"
-    deleted_student = await conn.fetchrow(query_delete, email)
+
+    query_delete = "DELETE FROM students WHERE student_id = $1 RETURNING *"
+    deleted_student = await conn.fetchrow(query_delete, student["student_id"])
     return dict(deleted_student)
 
 async def enroll_students_in_course(conn: asyncpg.Connection, course_id: int, emails: List[str]) -> List[Dict[str, Any]]:
     enrolled_students = []
     for email in emails:
-        student_id = await conn.fetchval("SELECT student_id FROM students WHERE email = $1", email)
+        student_id = await conn.fetchval(
+            "SELECT student_id FROM students WHERE lower(btrim(email)) = $1 ORDER BY student_id LIMIT 1",
+            normalize_email(email),
+        )
         if student_id:
-            enrollment_exists = await conn.fetchrow("SELECT * FROM enrollments WHERE student_id = $1 AND course_id = $2", student_id, course_id)
-            if not enrollment_exists:
-                await conn.execute("INSERT INTO enrollments (student_id, course_id, enrollment_date) VALUES ($1, $2, $3)", student_id, course_id, datetime.now())
-                enrolled_students.append({"student_id": student_id, "email": email, "status": "enrolled"})
-            else:
-                enrolled_students.append({"student_id": student_id, "email": email, "status": "already_enrolled"})
+            inserted = await _ensure_enrollment(conn, student_id, course_id)
+            enrolled_students.append({
+                "student_id": student_id,
+                "email": email,
+                "status": "enrolled" if inserted else "already_enrolled",
+            })
         else:
             enrolled_students.append({"email": email, "status": "not_found"})
     return enrolled_students
@@ -87,7 +185,10 @@ async def enroll_students_in_course(conn: asyncpg.Connection, course_id: int, em
 async def unenroll_students_from_course(conn: asyncpg.Connection, course_id: int, emails: List[str]) -> List[Dict[str, Any]]:
     unenrolled_students = []
     for email in emails:
-        student_id = await conn.fetchval("SELECT student_id FROM students WHERE email = $1", email)
+        student_id = await conn.fetchval(
+            "SELECT student_id FROM students WHERE lower(btrim(email)) = $1 ORDER BY student_id LIMIT 1",
+            normalize_email(email),
+        )
         if student_id:
             enrollment_exists = await conn.fetchrow("SELECT * FROM enrollments WHERE student_id = $1 AND course_id = $2", student_id, course_id)
             if enrollment_exists:
@@ -105,14 +206,21 @@ async def get_courses_for_student(conn: asyncpg.Connection, email: str) -> List[
         WHERE course_id IN (
             SELECT course_id
             FROM enrollments
-            WHERE student_id = (SELECT student_id FROM students WHERE email = $1)
+            WHERE student_id = (
+                SELECT student_id FROM students
+                WHERE lower(btrim(email)) = $1
+                ORDER BY student_id LIMIT 1
+            )
         )
     """
-    courses = await conn.fetch(query, email)
+    courses = await conn.fetch(query, normalize_email(email))
     return [dict(course) for course in courses]
 
 async def get_student_id_by_email(conn: asyncpg.Connection, email: str) -> Optional[int]:
-    student_id = await conn.fetchval("SELECT student_id FROM students WHERE email = $1", email)
+    student_id = await conn.fetchval(
+        "SELECT student_id FROM students WHERE lower(btrim(email)) = $1 ORDER BY student_id LIMIT 1",
+        normalize_email(email),
+    )
     if student_id is None:
         return None
     return student_id

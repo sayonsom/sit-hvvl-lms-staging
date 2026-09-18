@@ -3,7 +3,7 @@ Configuration management for LTI Backend Service
 Reads from environment variables with sensible defaults
 """
 import os
-from typing import List
+from typing import Dict, List, Optional
 from pydantic_settings import BaseSettings
 
 
@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     # Backend API (for creating/syncing students)
     BACKEND_API_URL: str = os.getenv("BACKEND_API_URL", "http://localhost:8080/api/v1")
     BACKEND_API_SERVICE_TOKEN: str = os.getenv("BACKEND_API_SERVICE_TOKEN", "")
+
+    # Local course a learner is enrolled into when the launch context has no explicit mapping.
+    DEFAULT_LOCAL_COURSE_ID: int = int(os.getenv("DEFAULT_LOCAL_COURSE_ID", "2"))
+    # Explicit "<brightspace_context_id>:<local_course_id>" pairs, comma separated.
+    LTI_CONTEXT_COURSE_MAP: str = os.getenv("LTI_CONTEXT_COURSE_MAP", "")
     BACKEND_API_JWT_SECRET: str = os.getenv(
         "BACKEND_API_JWT_SECRET",
         os.getenv("VHVL_SIGNING_KEY", ""),
@@ -94,6 +99,30 @@ class Settings(BaseSettings):
     STAFF_ADMIN_EMAILS: str = os.getenv("STAFF_ADMIN_EMAILS", "")
     STAFF_COURSE_IDS: str = os.getenv("STAFF_COURSE_IDS", "")
     REQUIRE_STAFF_OIDC: bool = os.getenv("REQUIRE_STAFF_OIDC", "false").lower() == "true"
+
+    @property
+    def lti_context_course_map(self) -> Dict[str, int]:
+        """Parse LTI_CONTEXT_COURSE_MAP into {brightspace_context_id: local_course_id}."""
+        mapping: Dict[str, int] = {}
+        for pair in self._split_csv(self.LTI_CONTEXT_COURSE_MAP):
+            context_id, separator, course_id = pair.partition(":")
+            context_id, course_id = context_id.strip(), course_id.strip()
+            if separator and context_id and course_id.isdigit():
+                mapping[context_id] = int(course_id)
+        return mapping
+
+    def local_course_id_for_context(self, context_id: Optional[str]) -> int:
+        """Resolve a validated Brightspace context id to a local course id.
+
+        A Brightspace context id is not a local primary key, so it is only ever
+        honoured via this explicit mapping; anything unmapped falls back to the
+        configured default rather than being used as an id directly.
+        """
+        if context_id:
+            mapped = self.lti_context_course_map.get(str(context_id).strip())
+            if mapped is not None:
+                return mapped
+        return self.DEFAULT_LOCAL_COURSE_ID
 
     @staticmethod
     def _split_csv(raw: str) -> List[str]:
